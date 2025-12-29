@@ -844,7 +844,7 @@ decimal types must be in a range
 
 <simpletype name="ProvIDType">
    <union memberTypes="BaseProvIDType OldProvIDType"/>
-   <submitunion memberTypes="BaseProvIDType"/>
+   <submitunion memberTypes="BaseProvIDType OldProvIDType"/>
    <doc> A provID (provisional ID) is may be a minor planet provid, 
       which is a 4-digit year followed by a space followd by two letters
       followed optinally by digits; or a comet it, which is C/ or P/ or D/ 
@@ -855,8 +855,7 @@ decimal types must be in a range
       which is S/ followed by a 4-digit year followed a space followed
       either (by a minor planet PermID in parentheses or the bare letter 
       M, J, S, N, U) followed by a space followed by digits.   For
-      data before 1926, the OldProvIDType may occur -- this is not allowed
-      in new submissions
+      data before 1926, the OldProvIDType may occur.
       </doc>
 
 </simpletype>
@@ -937,6 +936,13 @@ decimal types must be in a range
      <restrict name="xsd:maxLength" value="25"/>
    </restriction>
    <doc> A StringType limited to 25 characters</doc>
+</simpletype>
+
+<simpletype name="StringTypeW35">
+   <restriction base="StringType">
+     <restrict name="xsd:maxLength" value="35"/>
+   </restriction>
+   <doc> A StringType limited to 35 characters</doc>
 </simpletype>
 
 <simpletype name="StringTypeW100">
@@ -1563,7 +1569,7 @@ decimal types must be in a range
    <element name="artSat"     type="StringTypeW25"      doc="Name of an artificial satellite using international-style designation, e.g., 1998-067A. The general form is YYYY-NNNAAA."/>
    <element name="trkSub"     type="TrkSubType"         doc="Observer-assigned tracklet identifier, unique within submission batch."/>
    <element name="obsID"      type="ObsIDType"          doc="Globally Unique Observation ID assigned by MPC."/>
-   <element name="obsSubID"   type="StringTypeW25"      doc="Observation identifier, optionally included with the submission, that is unique to a given observing program. This element is intended to support extended analyses associated with major observing programs."/>
+   <element name="obsSubID"   type="StringTypeW35"      doc="Observation identifier, optionally included with the submission, that is unique to a given observing program. This element is intended to support extended analyses associated with major observing programs."/>
    <element name="trkID"      type="TrkIDType"          doc="Globally Unique alphnumeric tracklet ID assigned by MPC"/>
    <element name="trkMPC"     type="TrkIDType"          doc="MPC-internal tracklet identifier, used in cases where the value of the trkSub element should be considered deprecated."/>
    <element name="mode"       type="ModeType"           doc="Mode of optical and offset observations."/>
