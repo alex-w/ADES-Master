@@ -18,7 +18,17 @@ from ades import adesutility
 
 # ------------------------
 # valgeneral
-@pytest.mark.parametrize("xmlfile", ["input/obs_v2022.xml", "input/obssubid_35char.xml", "input/old_style_provid.xml"])
+@pytest.mark.parametrize(
+    "xmlfile",
+    [
+        "input/obs_v2022.xml",
+        "input/obssubid_35char.xml",
+        "input/old_style_provid.xml",
+        "input/obs_design.xml",
+        "input/obs_ITF_trksub.xml",
+        "input/obs_ref_28chars.xml",
+    ],
+)
 def test_valgeneral(xmlfile):
     """General validation"""
 
@@ -34,7 +44,18 @@ def test_valgeneral(xmlfile):
         else:
             assert False
 
-@pytest.mark.parametrize("xmlfile", ["input/obs_v2022.xml", "input/obssubid_35char.xml", "input/old_style_provid.xml"])
+
+@pytest.mark.parametrize(
+    "xmlfile",
+    [
+        "input/obs_v2022.xml",
+        "input/obssubid_35char.xml",
+        "input/old_style_provid.xml",
+        "input/obs_design.xml",
+        "input/obs_ITF_trksub.xml",
+        "input/obs_ref_28chars.xml",
+    ],
+)
 def test_valgeneral_routine(xmlfile):
     """General validation from import"""
     if os.path.exists("valgeneral.file"):
