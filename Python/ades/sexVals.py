@@ -13,11 +13,8 @@ from __future__ import unicode_literals
 
 import sys
 import re
-import io
 import math
 from datetime import datetime, timedelta
-
-#import adesutility
 
 
 def errorSexVal(msg, l):
@@ -70,6 +67,7 @@ _countIntegerSeconds = 0
 _countMinutesHundredths = 0
 _countMinutesTenths = 0
 _countIntegerMinutes = 0
+
 def _actionNormal(m):
    """ action for HH MM SS.ss..."""
    global _countNormal
@@ -216,6 +214,7 @@ _countDate100000 = 0
 _countDate1000000 = 0
 _countDateBig = 0
 _countDateSmall = 0
+
 def twoDigit(t):
    ss = "{0:.0f}".format(t+100.0)[1:]
    return ss
@@ -403,33 +402,113 @@ def sexRaToDecRa( sexRa ):
    #print ("rdict['raSexagesimal'] = ", hours, minutes, seconds, prec, value, digits, rdict['ra'])
    return (raDec, prec)
 
-def decRaToSexRa( decRa, prec ):
-   """ converts decimal degress Ra to sexagesimal Ra
-       Inputs: 
-         decRa: string decimal degrees RA 
-         prec: precison value
-       Return Value: 
-         sexRa:  string sexagesimal RA value in hms
+def _generic_decimal_to_sexagesimal(tot_seconds, prefix, prec, is_ra):
    """
-   rev = float(decRa)/secToDegrees
+   Return a sexagesimal representation of a number.
 
-   revDeg = int(rev/3600.0);
-   rev = rev - revDeg * 3600.0
-   if prec == 0.6:
-      revstr = '{0:.0f}'.format(100+revDeg)[1:] + ' ' + '{0:.2f}'.format(100.0 + rev/60.0)[1:]
+   Inputs: 
+      tot_seconds: float, the value in its "seconds" unit; should already be bounds-checked
+      prefix: string, a prefix to apply to the result
+      prec: float, precision value (see below)
+      is_ra: bool, True if we are handling an RA; otherwise, it is a declination
+
+   Returns: 
+      The sexagesimal string
+
+   See docstrings for decRaToSexRa or degDeclToSexDecl for details. The
+   *is_ra* parameter is needed to know how to handle values at the extremes 
+   of the allowed domain, which in turn we need to know because of our
+   rounding logic.
+   """
+
+   if prec == 60:
+      minutes_mode = True
+      places = 0
    elif prec == 6:
-      revstr = '{0:.0f}'.format(100+revDeg)[1:] + ' ' + '{0:.1f}'.format(100.0 + rev/60.0)[1:]
-   elif prec == 60:
-      revstr = '{0:.0f}'.format(100+revDeg)[1:] + ' ' + '{0:.0f}'.format(100.0 + rev/60.0)[1:]
+      minutes_mode = True
+      places = 1
+   elif prec == 0.6:
+      minutes_mode = True
+      places = 2
    else:
-      revMin = int(rev/60.0)
-      rev = rev - revMin * 60.0
-      pdig = -int(math.log10(prec))
-      fmt = '{0:.' + repr(pdig) + 'f}'
-      #print (pdig, fmt)
-      revstr = '{0:.0f}'.format(100+revDeg)[1:] + ' ' + '{0:.0f}'.format(100+revMin)[1:] + ' ' + fmt.format(100.0 + rev)[1:]
+      minutes_mode = False
+      places = -int(math.log10(prec))
 
-   return "{0:12s}".format(revstr)  # get length right
+   if places < 1:
+      width = places + 2  # no decimal point
+   else:
+      width = places + 3  # yes decimal point
+
+   # We need to round the rightmost fractional item *before* breaking down into
+   # H/M/S to avoid `60.0` situations. But the "native" unit of this item
+   # depends on whether we're in "minutes mode" or not. Either way, we also need
+   # to check if rounding has brought us to the edge of the domain, and wrap or
+   # clamp depending on whether we're RA or dec.
+
+   if minutes_mode:
+      tot_minutes = tot_seconds / 60
+      tot_minutes = round(tot_minutes, places)
+      
+      if is_ra:
+         if tot_minutes >= 1440.:
+            tot_minutes -= 1440  # this could happen if we round from 23:59:59.9 to 24:00:00
+      elif tot_minutes > 5400:  # +90 deg decl
+         tot_minutes = 5400.
+      elif tot_minutes < -5400:  # -90 deg decl
+         tot_minutes = -5400.
+
+      hours = int(tot_minutes // 60)
+      minutes = tot_minutes - hours * 60
+      result = "%s%02d %0*.*f" % (prefix, hours, width, places, minutes)
+   else:
+      tot_seconds = round(tot_seconds, places)
+
+      if is_ra:
+         if tot_seconds >= 86400.:
+            tot_seconds -= 86400
+      elif tot_seconds > 324000:  # +90 deg decl
+         tot_seconds = 324000.
+      elif tot_seconds < -324000:  # -90 deg decl
+         tot_seconds = -324000.
+
+      hours = int(tot_seconds // 3600)
+      seconds = tot_seconds - hours * 3600
+      minutes = int(seconds // 60)
+      seconds = seconds - minutes * 60
+      result = "%s%02d %02d %0*.*f" % (prefix, hours, minutes, width, places, seconds)
+
+   return "{0:12s}".format(result)  # get length right
+
+def decRaToSexRa(decRa, prec):
+   """
+   Converts decimal degrees RA to sexagesimal Ra
+
+   Inputs: 
+      decRa: decimal degrees RA; type is anything that can be converted to a float
+      prec: float, precision value (see below)
+   Return Value: 
+      sexRa: string, sexagesimal RA value in hms
+
+   The returned string will be at least twelve characters long, with padding
+   spaces added at the end if needed. Different values of *prec* result
+   in different outputs as follows:
+
+   - 60   => `HH MM       `
+   - 6    => `HH MM.M     `
+   - 0.6  => `HH MM.MM    `
+   - 1    => `HH MM SS    `
+   - 0.1  => `HH MM SS.S  `
+   - 0.01 => `HH MM SS.SS `
+   - 1e-5 => `HH MM SS.SSSSS`, etc.
+   """
+
+   tot_seconds = float(decRa) / secToDegrees
+
+   if tot_seconds < 0 or tot_seconds >= 86400.:
+      raise RuntimeError("illegal decRaToSexRa input {0!r}: out of numerical bounds".format(decRa))
+   
+   return _generic_decimal_to_sexagesimal(tot_seconds, "", prec, True)
+
    
 def checkRa(rdict):
    """ checks that rdict['raSexagesimal'] is valid and adds 
@@ -471,37 +550,40 @@ def sexDeclToDecDecl( sexDec ):
    #print ("rdict['decSexagesimal'] = ", rdict['decSexagesimal'], sign, degrees, minutes, seconds, prec, value, digits, decDecl)
    return (decDecl, prec)
 
-def degDeclToSexDecl( sexDecl, prec ):
-   """ converts decimal degress Ra to sexagesimal Declination
-       Inputs: 
-         decDecl: string decimal degrees Decl 
-         prec: precison value
-       Return Value: 
-         sexDecl:  string sexagesimal Declination value in dms
+def degDeclToSexDecl(sexDecl, prec):
    """
-   rev = float(sexDecl)/arcsecToDegrees
-   revSign = "+"
-   if rev < 0:
-      revSign = "-"
-      rev = -rev
-   elif sexDecl[0] == '-': # special case for -0.000
-      revSign = "-"
-   revDeg = int(rev/3600.0);
-   rev = rev - revDeg * 3600.0
-   if prec == 0.6:
-      revstr = revSign + '{0:.0f}'.format(100+revDeg)[1:] + ' ' + '{0:.2f}'.format(100.0 + rev/60.0)[1:]
-   elif prec == 6:
-      revstr = revSign + '{0:.0f}'.format(100+revDeg)[1:] + ' ' + '{0:.1f}'.format(100.0 + rev/60.0)[1:]
-   elif prec == 60:
-      revstr = revSign + '{0:.0f}'.format(100+revDeg)[1:] + ' ' + '{0:.0f}'.format(100.0 + rev/60.0)[1:]
-   else:
-      revMin = int((rev + 0.5*prec)/60.0)
-      rev = rev - revMin * 60.0
-      pdig = -int(math.log10(prec))
-      fmt = '{0:.' + repr(pdig) + 'f}'
-      #print (pdig, fmt)
-      revstr = revSign + '{0:.0f}'.format(100+revDeg)[1:] + ' ' + '{0:.0f}'.format(100+revMin)[1:] + ' ' + fmt.format(100.0 + rev)[1:]
-   return "{0:12s}".format(revstr)  # get length right
+   Converts decimal degrees declination to sexagesimal
+
+   Inputs: 
+      decDecl: **string** representation of a declination in decimal degrees
+      prec: float, precision value (see below)
+   Return Value: 
+      sexDecl: string, sexagesimal declination value in dms
+
+   The returned string will be at least twelve characters long, with padding
+   spaces added at the end if needed. Different values of *prec* result
+   in different outputs as follows:
+
+   - 60   => `DD MM       `
+   - 6    => `DD MM.M     `
+   - 0.6  => `DD MM.MM    `
+   - 1    => `DD MM SS    `
+   - 0.1  => `DD MM SS.S  `
+   - 0.01 => `DD MM SS.SS `
+   - 1e-5 => `DD MM SS.SSSSS`, etc.
+   """
+
+   tot_seconds = float(sexDecl) / arcsecToDegrees
+   prefix = "+"
+
+   if tot_seconds < -324000 or tot_seconds > 324000:
+      raise RuntimeError("illegal degDeclToSexDecl input {0!r}: out of numerical bounds".format(sexDecl))
+
+   if tot_seconds < 0 or sexDecl[0] == '-': # special case for -0.000
+      prefix = "-"
+      tot_seconds = abs(tot_seconds)
+
+   return _generic_decimal_to_sexagesimal(tot_seconds, prefix, prec, False)
 
 def checkDec(rdict):
    """ checks that rdict['decSexagesimal'] is valid and adds 
